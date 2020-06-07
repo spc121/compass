@@ -1,0 +1,388 @@
+﻿<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>动态时钟</title>
+    <meta name="史鹏程" content="js,jquery,time">
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+    <script src="js/test.js"></script>
+    <script src="js/common.js"></script>
+</head>
+
+<body>
+
+    <audio src='sound/an.mp3' controls  autoplay="autoplay"></audio>
+    <div class="main-content">
+        <div class="year"></div>
+        <div class="month"></div>
+        <div class="day"></div>
+        <div class="week"></div>
+        <div class="hour"></div>
+        <div class="minute"></div>
+        <div class="second"></div>
+    </div>
+    <canvas id="canvas"></canvas>
+
+
+
+</body>
+<style>
+    canvas {
+        cursor: crosshair;
+        display: block;
+    }
+
+    body{
+        user-select: none;
+    }
+
+    *{
+        margin: 0;
+        padding: 0;
+    }
+
+    body{
+        background: url("bg/plief.jpg") no-repeat;
+        background-attachment: fixed;
+        color: #F5F4F6;
+        font-size: 14px;
+        font-weight: bold;
+        overflow: hidden;
+        width: 1000px;
+        height: 900px;
+        font-family: "微软雅黑";
+    }
+
+    audio{
+        position: absolute;
+        right: 0;
+        opacity: 0.1;
+        transition: all 1s;
+
+    }
+
+    audio:hover{
+        opacity: 1;
+    }
+
+    .current{
+        color: #F5F466;
+    }
+
+
+    video{
+        z-index: -1;
+        position: fixed;
+        min-width: 100%;
+        min-height: 100%;
+    }
+
+
+    .main-content{
+        position: absolute;
+        top:50%;
+        left: 50%;
+    }
+
+
+    .main-content .year{
+        position: relative;
+        top: -13px;
+        left: -38px;
+        text-align: center;
+        perspective:800px;
+    }
+
+    .year span{
+        position: absolute;
+        width: 80px;
+    }
+
+    .main-content .month{
+        position: relative;
+        top: -13px;
+        left: 45px;
+        perspective:800px;
+    }
+
+    .month span{
+        position: absolute;
+        width: 60px;
+    }
+
+    .main-content .day{
+        position: relative;
+        top: -13px;
+        left: 90px;
+        perspective:800px;
+    }
+
+    .day span{
+        position: absolute;
+        width: 65px;
+    }
+
+
+    .main-content .week{
+        position: relative;
+        top: -13px;
+        left: 145px;
+        perspective:800px;
+    }
+    .week span{
+        position: absolute;
+        width: 65px;
+
+    }
+
+    .main-content .hour{
+        position: relative;
+        top: -13px;
+        left: 205px;
+        perspective:800px;
+    }
+    .hour span{
+        position: absolute;
+        width: 60px;
+
+    }
+
+
+    .main-content .minute{
+        position: relative;
+        top: -13px;
+        left: 270px;
+        perspective:800px;
+    }
+    .minute span{
+        position: absolute;
+        width: 60px;
+
+    }
+
+
+    .main-content .second{
+        position: relative;
+        top: -13px;
+        left: 310px;
+        perspective:800px;
+    }
+    .second span{
+        position: absolute;
+        width: 60px;
+
+    }
+</style>
+
+<script>
+    window.requestAnimFrame = ( function() {
+        return window.requestAnimationFrame ||
+            window.webkitRequestAnimationFrame ||
+            window.mozRequestAnimationFrame ||
+            function( callback ) {
+                window.setTimeout( callback, 1000 / 60 );
+            };
+    })();
+    var canvas = document.getElementById( 'canvas' ),
+        ctx = canvas.getContext( '2d' ),
+        cw = window.innerWidth,
+        ch = window.innerHeight,
+
+        fireworks = [],
+        particles = [],
+        hue = 120,
+
+        limiterTotal = 5,
+        limiterTick = 0,
+        timerTotal = 80,
+        timerTick = 0,
+        mousedown = false,
+
+        mx,
+        my;
+
+    canvas.width = cw;
+    canvas.height = ch;
+
+
+    function random( min, max ) {
+        return Math.random() * ( max - min ) + min;
+    }
+
+    function calculateDistance( p1x, p1y, p2x, p2y ) {
+        var xDistance = p1x - p2x,
+            yDistance = p1y - p2y;
+        return Math.sqrt( Math.pow( xDistance, 2 ) + Math.pow( yDistance, 2 ) );
+    }
+
+    // create firework
+    function Firework( sx, sy, tx, ty ) {
+
+        this.x = sx;
+        this.y = sy;
+        this.sx = sx;
+        this.sy = sy;
+        this.tx = tx;
+        this.ty = ty;
+        this.distanceToTarget = calculateDistance( sx, sy, tx, ty );
+        this.distanceTraveled = 0;
+
+        this.coordinates = [];
+        this.coordinateCount = 3;
+        while( this.coordinateCount-- ) {
+            this.coordinates.push( [ this.x, this.y ] );
+        }
+        this.angle = Math.atan2( ty - sy, tx - sx );
+        this.speed = 2;
+        this.acceleration = 1.05;
+        this.brightness = random( 50, 70 );
+        this.targetRadius = 1;
+    }
+
+    // update firework
+    Firework.prototype.update = function( index ) {
+        this.coordinates.pop();
+        this.coordinates.unshift( [ this.x, this.y ] );
+
+        if( this.targetRadius < 8 ) {
+            this.targetRadius += 0.3;
+        } else {
+            this.targetRadius = 1;
+        }
+        this.speed *= this.acceleration;
+        var vx = Math.cos( this.angle ) * this.speed,
+            vy = Math.sin( this.angle ) * this.speed;
+        this.distanceTraveled = calculateDistance( this.sx, this.sy, this.x + vx, this.y + vy );
+
+        if( this.distanceTraveled >= this.distanceToTarget ) {
+            createParticles( this.tx, this.ty );
+            fireworks.splice( index, 1 );
+        } else {
+            this.x += vx;
+            this.y += vy;
+        }
+    }
+
+    // draw firework
+    Firework.prototype.draw = function() {
+        ctx.beginPath();
+
+        ctx.moveTo( this.coordinates[ this.coordinates.length - 1][ 0 ], this.coordinates[ this.coordinates.length - 1][ 1 ] );
+        ctx.lineTo( this.x, this.y );
+        ctx.strokeStyle = 'hsl(' + hue + ', 100%, ' + this.brightness + '%)';
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc( this.tx, this.ty, this.targetRadius, 0, Math.PI * 2 );
+        ctx.stroke();
+    }
+
+    // create particle
+    function Particle( x, y ) {
+        this.x = x;
+        this.y = y;
+        this.coordinates = [];
+        this.coordinateCount = 5;
+        while( this.coordinateCount-- ) {
+            this.coordinates.push( [ this.x, this.y ] );
+        }
+        this.angle = random( 0, Math.PI * 2 );
+        this.speed = random( 1, 10 );
+        this.friction = 0.95;
+        this.gravity = 1;
+        this.hue = random( hue - 20, hue + 20 );
+        this.brightness = random( 50, 80 );
+        this.alpha = 1;
+        this.decay = random( 0.015, 0.03 );
+    }
+
+    // update particle
+    Particle.prototype.update = function( index ) {
+
+        this.coordinates.pop();
+        this.coordinates.unshift( [ this.x, this.y ] );
+        this.speed *= this.friction;
+        this.x += Math.cos( this.angle ) * this.speed;
+        this.y += Math.sin( this.angle ) * this.speed + this.gravity;
+        this.alpha -= this.decay;
+        if( this.alpha <= this.decay ) {
+            particles.splice( index, 1 );
+        }
+    }
+
+    // draw particle
+    Particle.prototype.draw = function() {
+        ctx. beginPath();
+        ctx.moveTo( this.coordinates[ this.coordinates.length - 1 ][ 0 ], this.coordinates[ this.coordinates.length - 1 ][ 1 ] );
+        ctx.lineTo( this.x, this.y );
+        ctx.strokeStyle = 'hsla(' + this.hue + ', 100%, ' + this.brightness + '%, ' + this.alpha + ')';
+        ctx.stroke();
+    }
+
+
+    function createParticles( x, y ) {
+        var particleCount = 30;
+        while( particleCount-- ) {
+            particles.push( new Particle( x, y ) );
+        }
+    }
+
+    // main demo loop
+    function loop() {
+        requestAnimFrame( loop );
+
+        hue += 0.5;
+
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect( 0, 0, cw, ch );
+        ctx.globalCompositeOperation = 'lighter';
+
+        var i = fireworks.length;
+        while( i-- ) {
+            fireworks[ i ].draw();
+            fireworks[ i ].update( i );
+        }
+        var i = particles.length;
+        while( i-- ) {
+            particles[ i ].draw();
+            particles[ i ].update( i );
+        }
+        if( timerTick >= timerTotal ) {
+            if( !mousedown ) {
+                fireworks.push( new Firework( cw / 2, ch, random( 0, cw ), random( 0, ch / 2 ) ) );
+                timerTick = 0;
+            }
+        } else {
+            timerTick++;
+        }
+
+        if( limiterTick >= limiterTotal ) {
+            if( mousedown ) {
+                fireworks.push( new Firework( cw / 2, ch, mx, my ) );
+                limiterTick = 0;
+            }
+        } else {
+            limiterTick++;
+        }
+    }
+
+    canvas.addEventListener( 'mousemove', function( e ) {
+        mx = e.pageX - canvas.offsetLeft;
+        my = e.pageY - canvas.offsetTop;
+    });
+
+    canvas.addEventListener( 'mousedown', function( e ) {
+        e.preventDefault();
+        mousedown = true;
+    });
+
+    canvas.addEventListener( 'mouseup', function( e ) {
+        e.preventDefault();
+        mousedown = false;
+    });
+
+    window.onload = loop;
+
+</script>
+</html>
